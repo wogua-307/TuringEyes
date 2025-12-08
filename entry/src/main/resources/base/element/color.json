@@ -1,0 +1,16 @@
+{
+  "color": [
+    {
+      "name": "start_window_background",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "tab_nor_color",
+      "value": "#6B7280"
+    },
+    {
+      "name": "tab_sel_color",
+      "value": "#2563EB"
+    }
+  ]
+}
