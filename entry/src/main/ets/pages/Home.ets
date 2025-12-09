@@ -1,11 +1,9 @@
 import { fetchPexelsCurated, fetchPexelsSearch } from '../services/pexel'
 import { PhotoItem } from '../types'
+import { PexelDataSource } from './source/PexelDataSource'
 import { hilog } from '@kit.PerformanceAnalysisKit'
-import http from '@ohos.net.http'
-import fileio from '@ohos.fileio'
-import mediaLibrary from '@ohos.multimedia.mediaLibrary'
-import abilityAccessCtrl from '@ohos.abilityAccessCtrl'
 import preferences from '@ohos.data.preferences'
+import router from '@ohos.router'
 
 @Component
 export struct HomePage {
@@ -13,15 +11,11 @@ export struct HomePage {
   @State private page: number = 1
   @State private query: string = ''
   @State private activeTag: string = '精选'
-  @State private tags: string[] = ['精选', '自然', '动物', '美食', '科技', '人物', '旅行', '运动', '艺术', '建筑']
+  @State private tags: string[] = ['Curated', 'Nature', 'Architecture', 'People']
   @State private photos: PhotoItem[] = []
   @State private favoriteIds: number[] = []
-  @State private previewItem?: PhotoItem
-
-  private previewController: CustomDialogController = new CustomDialogController({
-    builder: this.PreviewDialog,
-    autoCancel: true
-  })
+  @State private previewItem: PhotoItem | undefined = undefined
+  private photoDataSource: PexelDataSource = new PexelDataSource(this.photos)
 
   aboutToAppear() {
     this.initFavorites()
@@ -56,6 +50,7 @@ export struct HomePage {
       const res = await fetchPexelsCurated(reset ? 1 : this.page)
       this.page = res.page
       this.photos = reset ? res.photos : [...this.photos, ...res.photos]
+      this.photoDataSource.updateData(this.photos)
       this.activeTag = '精选'
     } catch (e) {
       hilog.error(0x0000, 'Home', 'loadCurated error %{public}s', JSON.stringify(e))
@@ -70,6 +65,7 @@ export struct HomePage {
       const res = await fetchPexelsSearch(query, reset ? 1 : this.page)
       this.page = res.page
       this.photos = reset ? res.photos : [...this.photos, ...res.photos]
+      this.photoDataSource.updateData(this.photos)
     } catch (e) {
       hilog.error(0x0000, 'Home', 'doSearch error %{public}s', JSON.stringify(e))
     } finally {
@@ -101,7 +97,7 @@ export struct HomePage {
     return this.favoriteIds.indexOf(id) !== -1
   }
 
-  private toggleFavorite(item: PhotoItem) {
+  private toggleFavorite(item: PhotoItem): void {
     const idx = this.favoriteIds.indexOf(item.id)
     if (idx === -1) {
       this.favoriteIds = [...this.favoriteIds, item.id]
@@ -113,165 +109,232 @@ export struct HomePage {
     this.persistFavorites()
   }
 
-  private openPreview(item: PhotoItem) {
-    this.previewItem = item
-    this.previewController.open()
+  private openPreview(item: PhotoItem): void {
+    router.pushUrl({ url: 'pages/Preview', params: { item: JSON.stringify(item) } })
   }
 
-  private async ensureMediaPermissions(): Promise<boolean> {
-    try {
-      const ctx = getContext(this)
-      const manager = abilityAccessCtrl.createAtManager()
-      const perms = ['ohos.permission.READ_MEDIA', 'ohos.permission.WRITE_MEDIA']
-      const result = await manager.requestPermissionsFromUser(ctx, perms)
-      return result && result.authResults && result.authResults.every((v: number) => v === 0)
-    } catch (e) {
-      hilog.error(0x0000, 'Home', 'ensureMediaPermissions error %{public}s', JSON.stringify(e))
-      return false
-    }
-  }
-
-  private async downloadBytes(url: string): Promise<Uint8Array> {
-    const client = http.createHttp()
-    try {
-      const resp = await client.request(url, {
-        method: http.RequestMethod.GET,
-        expectDataType: http.HttpDataType.BYTE_ARRAY
-      })
-      if (resp.responseCode !== 200) {
-        throw new Error('download failed')
-      }
-      const bytes = resp.result as ArrayBuffer
-      return new Uint8Array(bytes)
-    } finally {
-      client.destroy()
-    }
-  }
-
-  private async saveToAlbum(item: PhotoItem) {
-    const ok = await this.ensureMediaPermissions()
-    if (!ok) {
-      return
-    }
-    try {
-      const ctx = getContext(this)
-      const ml = mediaLibrary.getMediaLibrary(ctx)
-      const publicDir = await ml.getPublicDirectory(mediaLibrary.DirectoryType.DIR_IMAGE)
-      const fileName = `pexels_${item.id}.jpg`
-      const asset = await ml.createAsset(mediaLibrary.MediaType.IMAGE, fileName, publicDir)
-      const fd = await ml.openAsset(asset, mediaLibrary.OpenMode.WRITE_ONLY)
-      const data = await this.downloadBytes(item.src.original || item.src.large || item.src.medium)
-      await fileio.write(fd, data)
-      await fileio.close(fd)
-    } catch (e) {
-      hilog.error(0x0000, 'Home', 'saveToAlbum error %{public}s', JSON.stringify(e))
-    }
+  @Builder
+  itemFoot() {
+    LoadingProgress()
+      .width('100%')
+      .height(48)
   }
 
   build() {
-    Column() {
-      Row() {
-        Search()
-          .placeholder('搜索图片')
-          .value(this.query)
-          .onChange((v: string) => this.query = v)
-          .onSubmit(() => this.onSearchSubmit())
-        Button('搜索')
-          .margin({ left: 8 })
-          .onClick(() => this.onSearchSubmit())
-      }
-      .width('100%')
-      .padding({ top: 12, left: 12, right: 12 })
-
-      Scroll() {
+    Stack({ alignContent: Alignment.BottomEnd }) {
+      Column() {
         Row() {
-          ForEach(this.tags, (tag: string) => {
-            this.TagChip(tag, this.activeTag === tag)
-          })
-        }
-        .padding({ left: 12, right: 12 })
-        .height(44)
-        .alignItems(HorizontalAlign.Start)
-        .justifyContent(FlexAlign.Start)
-        .gap(8)
-      }.scrollable(ScrollDirection.Horizontal)
+          Row() {
+            Text('L')
+              .width(32)
+              .height(32)
+              .borderRadius(16)
+              .backgroundColor('#16a34a')
+              .fontColor('#fff')
+              .fontSize(20)
+              .textAlign(TextAlign.Center)
+          }
+          .width(40)
 
-      Scroll() {
-        Wrap() {
-          ForEach(this.photos, (item: PhotoItem) => {
-            this.PhotoCard(item)
-          }, (item: PhotoItem) => item.id)
+          Text('LensFocus')
+            .fontSize(20)
+            .fontWeight(FontWeight.Bold)
+            .margin({ left: 8 })
         }
         .width('100%')
-        .gap(8)
-        .padding({ left: 12, right: 12, bottom: 12 })
+        .padding({ top: 24, left: 20, right: 20 })
+
+        Row() {
+          TextInput({ placeholder: 'Architecture', text: this.query })
+            .height(48)
+            .borderRadius(12)
+            .backgroundColor('#f4f4f6')
+            .padding({ left: 16 })
+            .layoutWeight(1)
+            .onChange((v: string) => this.query = v)
+          Button('Search')
+            .type(ButtonType.Capsule)
+            .margin({ left: 12 })
+            .height(48)
+            .onClick(() => this.onSearchSubmit())
+        }
+        .width('100%')
+        .padding({ left: 20, right: 20, top: 8 })
+
+        Scroll() {
+          Row() {
+            ForEach(this.tags, (tag: string) => {
+              this.TagChip(tag, this.activeTag === tag)
+            })
+          }
+          .padding({ left: 20, right: 20 })
+          .height(55)
+          .margin({ top: 10, bottom: 10 })
+          .alignItems(VerticalAlign.Center)
+          .justifyContent(FlexAlign.Start)
+        }.scrollable(ScrollDirection.Horizontal)
+        .scrollBar(BarState.Off)
+
+        WaterFlow({ footer: this.itemFoot }) {
+          LazyForEach(this.photoDataSource, (item: PhotoItem) => {
+            FlowItem() {
+              PhotoCardItem({
+                item: item,
+                isFavorite: (id: number): boolean => this.isFavorite(id),
+                toggleFavorite: (it: PhotoItem): void => this.toggleFavorite(it),
+                openPreview: (it: PhotoItem): void => this.openPreview(it)
+              })
+            }
+          }, (item: PhotoItem) => item.id.toString())
+        }
+        .columnsTemplate('1fr 1fr')
+        .columnsGap(12)
+        .rowsGap(12)
+        .padding({ left: 20, right: 20, bottom: 80 })
+        .scrollBar(BarState.Off)
+        .onReachEnd(() => this.loadMore())
+
+        // 瀑布流替代 List 渲染
+
+        if (this.loading) {
+          LoadingProgress()
+            .width('100%')
+            .height(48)
+        }
       }
-      .scrollable(ScrollDirection.Vertical)
       .width('100%')
       .height('100%')
 
-      if (this.loading) {
-        LoadingProgress()
-          .width('100%')
-          .height(48)
-      }
+      Button('↑')
+        .type(ButtonType.Circle)
+        .width(45)
+        .height(45)
+        .fontSize(18)
+        .backgroundColor('#f5f5f5')
+        .fontColor('#000')
+        .margin({ right: 20, bottom: 28 })
     }
     .width('100%')
     .height('100%')
   }
 
-  @Builder TagChip(label: string, active: boolean) {
+  @Builder
+  TagChip(label: string, active: boolean) {
     Button(label)
       .type(ButtonType.Capsule)
-      .backgroundColor(active ? '#222' : '#eee')
+      .backgroundColor(active ? '#000' : '#eee')
       .fontColor(active ? '#fff' : '#333')
+      .margin({ right: 8 })
       .onClick(() => this.onTagClick(label))
   }
 
-  @Builder PhotoCard(item: PhotoItem) {
-    Column() {
-      Image(item.src.medium)
-        .objectFit(ImageFit.Cover)
-        .width('48%')
-        .aspectRatio(1)
-        .borderRadius(12)
-        .onClick(() => this.openPreview(item))
-      Row() {
-        Button(this.isFavorite(item.id) ? '已收藏' : '收藏')
-          .type(ButtonType.Normal)
-          .onClick(() => this.toggleFavorite(item))
-        Button('保存')
-          .margin({ left: 8 })
-          .onClick(() => this.saveToAlbum(item))
+  // 使用 WaterFlow 渲染，无需行分组
+
+  private async loadMore() {
+    if (this.photos.length >= 320) return
+    const nextPage = this.page + 1
+    this.loading = true
+    try {
+      if (this.activeTag === '精选' || this.activeTag === 'Curated') {
+        const res = await fetchPexelsCurated(nextPage)
+        this.page = res.page
+        this.photos = [...this.photos, ...res.photos]
+        this.photoDataSource.updateData(this.photos)
+      } else {
+        const q = this.activeTag || this.query || 'Curated'
+        const res = await fetchPexelsSearch(q, nextPage)
+        this.page = res.page
+        this.photos = [...this.photos, ...res.photos]
+        this.photoDataSource.updateData(this.photos)
       }
-      .margin({ top: 6 })
+    } catch (e) {
+      hilog.error(0x0000, 'Home', 'loadMore error %{public}s', JSON.stringify(e))
+    } finally {
+      this.loading = false
+    }
+  }
+}
+
+@Component
+export struct PhotoCardItem {
+  item: PhotoItem = {
+    id: 0,
+    width: 0,
+    height: 0,
+    url: '',
+    photographer: '',
+    photographer_url: '',
+    photographer_id: '',
+    alt: '',
+    avg_color: '#eeeeee',
+    src: {
+      original: '',
+      large: '',
+      medium: '',
+      small: ''
+    }
+  }
+  isFavorite: (id: number) => boolean = (id: number) => false
+  toggleFavorite: (item: PhotoItem) => void = (item: PhotoItem) => {
+  }
+  openPreview: (item: PhotoItem) => void = (item: PhotoItem) => {
+  }
+  @State private imgLoading: boolean = true
+
+  build() {
+    Column() {
+      Stack({ alignContent: Alignment.TopEnd }) {
+        Column() {
+          Blank()
+            .width('100%')
+            .height('100%')
+        }
+
+        Image(this.item.src.medium)
+          .objectFit(ImageFit.Cover)
+          .width('100%')
+          .height('100%')
+          .onComplete(() => {
+            this.imgLoading = false
+          })
+          .onClick(() => this.openPreview(this.item))
+
+        if (this.imgLoading) {
+          Row() {
+            LoadingProgress()
+              .width(32)
+              .height(32)
+          }
+          .align(Alignment.Center)
+          .justifyContent(FlexAlign.Center)
+          .width('100%')
+          .height('100%')
+        }
+
+        Button(this.isFavorite(this.item.id) ? '❤' : '♡')
+          .type(ButtonType.Circle)
+          .width(32)
+          .height(32)
+          .fontColor(this.isFavorite(this.item.id) ? '#ff4d4f' : '#333')
+          .backgroundColor('#ffffff')
+          .margin({ right: 12, top: 12 })
+          .onClick(() => this.toggleFavorite(this.item))
+      }
+      .margin({ bottom: 0 })
+      .width('100%')
+      .aspectRatio(this.getAspect())
+      .borderRadius(16)
+      .clip(true)
+      .backgroundColor(this.item.avg_color || '#eee')
     }
   }
 
-  @Builder PreviewDialog() {
-    Column() {
-      if (this.previewItem) {
-        Image(this.previewItem.src.large || this.previewItem.src.original)
-          .width('100%')
-          .height('70%')
-          .objectFit(ImageFit.Contain)
-        Row() {
-          Button(this.isFavorite(this.previewItem.id) ? '取消收藏' : '收藏')
-            .onClick(() => this.toggleFavorite(this.previewItem!))
-          Button('保存到相册')
-            .margin({ left: 8 })
-            .onClick(() => this.saveToAlbum(this.previewItem!))
-          Button('关闭')
-            .margin({ left: 8 })
-            .onClick(() => this.previewController.close())
-        }
-        .padding({ top: 12 })
-      }
+  private getAspect(): number {
+    const w = this.item.width || 0
+    const h = this.item.height || 0
+    if (w > 0 && h > 0) {
+      return w / h
     }
-    .width('90%')
-    .height('80%')
-    .padding(12)
-    .backgroundColor('#fff')
-    .borderRadius(12)
+    return 3 / 4
   }
 }

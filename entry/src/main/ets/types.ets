@@ -12,7 +12,12 @@ interface PhotoItem {
   id: number,
   width: number,
   height: number,
+  url: string,
   photographer: string,
+  photographer_url: string,
+  photographer_id: string,
+  alt?: string,
+  avg_color: string,
   src: PhotoItemSrc
 }
 
