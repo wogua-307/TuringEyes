@@ -18,7 +18,7 @@ interface PhotoAsset {
 @Component
 export struct PreviewPage {
   @State private item: PhotoItem | undefined = undefined
-  @State private favoriteIds: number[] = []
+  @StorageLink('app_favorite_ids') favoriteIds: number[] = []
   @State private bottomInset: number = 0
   private previewHeight: number = 420
 
@@ -28,28 +28,11 @@ export struct PreviewPage {
       if (params && params.item) {
         this.item = JSON.parse(params.item) as PhotoItem
       }
-      if (params && params.favs) {
-        const favs = JSON.parse(params.favs) as number[]
-        if (Array.isArray(favs)) {
-          this.favoriteIds = favs
-        }
-      }
+      // Note: favs passed from Home are ignored in favor of AppStorage
     } catch (e) {
       hilog.error(0x0000, 'Preview', 'parse params error %{public}s', JSON.stringify(e))
     }
-    this.initFavorites()
     this.initBottomInset()
-  }
-
-  private async initFavorites() {
-    const ctx = getContext(this)
-    try {
-      const prefs = await preferences.getPreferences(ctx, 'photo_favorites')
-      const stored = await prefs.get('favorites', '[]') as string
-      this.favoriteIds = JSON.parse(stored)
-    } catch (e) {
-      hilog.error(0x0000, 'Preview', 'initFavorites error %{public}s', JSON.stringify(e))
-    }
   }
 
   private async persistFavorites() {

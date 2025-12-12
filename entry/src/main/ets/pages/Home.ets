@@ -13,9 +13,10 @@ export struct HomePage {
   @State private activeTag: string = '精选'
   @State private tags: string[] = ['Curated', 'Nature', 'Architecture', 'People']
   @State private photos: PhotoItem[] = []
-  @State private favoriteIds: number[] = []
+  @StorageLink('app_favorite_ids') favoriteIds: number[] = []
   @State private previewItem: PhotoItem | undefined = undefined
   private photoDataSource: PexelDataSource = new PexelDataSource(this.photos)
+  private scroller: Scroller = new Scroller()
 
   aboutToAppear() {
     this.initFavorites()
@@ -23,15 +24,21 @@ export struct HomePage {
   }
 
   onPageShow() {
-    this.initFavorites()
+    // favorites are synced via AppStorage, no need to reload from prefs
     this.photoDataSource.notifyDataReload()
   }
 
   private async initFavorites() {
+    // Load only if empty or force reload? 
+    // Ideally we assume AppStorage might be empty on fresh start.
+    // If it's already set by another page/session, we might overwrite?
+    // But Home is usually the first page.
     const ctx = getContext(this)
     try {
       const prefs = await preferences.getPreferences(ctx, 'photo_favorites')
       const stored = await prefs.get('favorites', '[]') as string
+      // Only set if we really want to load initial state.
+      // Since AppStorage is global, loading it here is fine.
       this.favoriteIds = JSON.parse(stored)
     } catch (e) {
       hilog.error(0x0000, 'Home', 'initFavorites error %{public}s', JSON.stringify(e))
@@ -180,7 +187,7 @@ export struct HomePage {
         }.scrollable(ScrollDirection.Horizontal)
         .scrollBar(BarState.Off)
 
-        WaterFlow({ footer: this.itemFoot }) {
+        WaterFlow({ footer: this.itemFoot, scroller: this.scroller }) {
           LazyForEach(this.photoDataSource, (item: PhotoItem) => {
             FlowItem() {
               PhotoCardItem({
@@ -218,6 +225,9 @@ export struct HomePage {
         .backgroundColor('#f5f5f5')
         .fontColor('#000')
         .margin({ right: 20, bottom: 28 })
+        .onClick(() => {
+          this.scroller.scrollTo({ xOffset: 0, yOffset: 0, animation: { duration: 300 } })
+        })
     }
     .width('100%')
     .height('100%')
