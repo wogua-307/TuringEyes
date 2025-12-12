@@ -22,6 +22,11 @@ export struct HomePage {
     this.loadCurated(true)
   }
 
+  onPageShow() {
+    this.initFavorites()
+    this.photoDataSource.notifyDataReload()
+  }
+
   private async initFavorites() {
     const ctx = getContext(this)
     try {
@@ -110,7 +115,7 @@ export struct HomePage {
   }
 
   private openPreview(item: PhotoItem): void {
-    router.pushUrl({ url: 'pages/Preview', params: { item: JSON.stringify(item) } })
+    router.pushUrl({ url: 'pages/Preview', params: { item: JSON.stringify(item), favs: JSON.stringify(this.favoriteIds) } })
   }
 
   @Builder
@@ -180,7 +185,7 @@ export struct HomePage {
             FlowItem() {
               PhotoCardItem({
                 item: item,
-                isFavorite: (id: number): boolean => this.isFavorite(id),
+                favoriteIds: this.favoriteIds,
                 toggleFavorite: (it: PhotoItem): void => this.toggleFavorite(it),
                 openPreview: (it: PhotoItem): void => this.openPreview(it)
               })
@@ -274,7 +279,7 @@ export struct PhotoCardItem {
       small: ''
     }
   }
-  isFavorite: (id: number) => boolean = (id: number) => false
+  @Prop favoriteIds: number[] = []
   toggleFavorite: (item: PhotoItem) => void = (item: PhotoItem) => {
   }
   openPreview: (item: PhotoItem) => void = (item: PhotoItem) => {
@@ -311,11 +316,11 @@ export struct PhotoCardItem {
           .height('100%')
         }
 
-        Button(this.isFavorite(this.item.id) ? '❤' : '♡')
+        Button(this.isFav(this.item.id) ? '❤' : '♡')
           .type(ButtonType.Circle)
           .width(32)
           .height(32)
-          .fontColor(this.isFavorite(this.item.id) ? '#ff4d4f' : '#333')
+          .fontColor(this.isFav(this.item.id) ? '#ff4d4f' : '#333')
           .backgroundColor('#ffffff')
           .margin({ right: 12, top: 12 })
           .onClick(() => this.toggleFavorite(this.item))
@@ -336,5 +341,9 @@ export struct PhotoCardItem {
       return w / h
     }
     return 3 / 4
+  }
+
+  private isFav(id: number): boolean {
+    return this.favoriteIds.indexOf(id) !== -1
   }
 }

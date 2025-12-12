@@ -1,3 +1,4 @@
+@Entry
 @Component
 export struct OCRPage {
   @State message: string = 'hello world OCRPage'
