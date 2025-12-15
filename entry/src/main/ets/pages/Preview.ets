@@ -22,7 +22,6 @@ export struct PreviewPage {
   @State private item: PhotoItem | undefined = undefined
   @StorageLink('app_favorite_ids') favoriteIds: number[] = []
   @State private bottomInset: number = 0
-  private previewHeight: number = 420
 
   aboutToAppear() {
     const params = router.getParams() as Record<string, string>
@@ -178,7 +177,7 @@ export struct PreviewPage {
             .padding({ left: 0, right: 0, top: 0 })
             .margin({ top: 12, left: 12, right: 12 })
             .width('100%')
-            .height(this.previewHeight)
+            .layoutWeight(1)
             .borderRadius(16)
             .clip(true)
             .backgroundColor('#000')
@@ -264,6 +263,7 @@ export struct PreviewPage {
 
             Blank().height(0)
           }
+          .constraintSize({ minHeight: '100%' })
         }
         .layoutWeight(1)
         .scrollBar(BarState.Off)
@@ -326,7 +326,7 @@ export struct PreviewPage {
       .width('90%')
       .height(50)
       // .shadow({ radius: 8, color: 'rgba(22, 163, 74, 0.24)', offsetY: 4 })
-      .margin({ bottom: this.bottomInset + 8 })
+      .margin({ top: 25, bottom: this.bottomInset + 8 })
     }
     .width('100%')
     .height('100%')
