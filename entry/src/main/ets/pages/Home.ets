@@ -70,6 +70,7 @@ export struct HomePage {
 
   private async loadCurated(reset: boolean = false) {
     this.loading = true
+    hilog.info(0x0000, 'Home', `doSearch error ${reset ? '111' : '2222'}s`)
     try {
       const res = reset ? await fetchPexelsRandom() : await fetchPexelsCurated(this.page)
       this.page = res.page
@@ -164,14 +165,10 @@ export struct HomePage {
       Column() {
         Row() {
           Row() {
-            Text('L')
+            Image($r('app.media.foreground'))
               .width(32)
               .height(32)
               .borderRadius(16)
-              .backgroundColor('#16a34a')
-              .fontColor('#fff')
-              .fontSize(20)
-              .textAlign(TextAlign.Center)
           }
           .width(40)
 
@@ -244,13 +241,17 @@ export struct HomePage {
       .width('100%')
       .height('100%')
 
-      Button('↑')
+      Button() {
+        Text('↑')
+          .fontSize(20)
+          .fontColor('#000')
+          .textAlign(TextAlign.Center)
+          .width('100%')
+      }
         .type(ButtonType.Circle)
         .width(45)
         .height(45)
-        .fontSize(18)
         .backgroundColor('#f5f5f5')
-        .fontColor('#000')
         .margin({ right: 20, bottom: 28 })
         .onClick(() => {
           this.scroller.scrollTo({ xOffset: 0, yOffset: 0, animation: { duration: 300 } })

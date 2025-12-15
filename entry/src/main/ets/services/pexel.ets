@@ -54,7 +54,7 @@ const  fetchPexelsSearch = async (query: string, page: number, perPage: number =
 }
 
 const fetchPexelsRandom = async (perPage: number = 40): Promise<PexelsResponse> => {
-  const randomPage = Math.max(1, Math.floor(Math.random() * 500) + 1)
+  const randomPage = Math.max(1, Math.floor(Math.random() * 20) + 1)
   return await httpGet(`${SERVICE_BASE_URL}/v1/curated?page=${randomPage}&per_page=${perPage}`)
 }
 
