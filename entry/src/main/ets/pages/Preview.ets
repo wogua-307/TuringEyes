@@ -201,7 +201,7 @@ export struct PreviewPage {
               .margin({ right: 12 })
 
               Column() {
-                Text('Photographer')
+                Text('摄影师')
                   .fontSize(12)
                   .fontColor('#6b7280')
                   .margin({ bottom: 2 })
@@ -223,7 +223,7 @@ export struct PreviewPage {
             // Details Card
             Column() {
               Row() {
-                Text('Dimensions')
+                Text('分辨率 (宽 x 高)')
                   .fontColor('#6b7280')
                   .fontSize(14)
                 Blank().layoutWeight(1)
@@ -236,7 +236,7 @@ export struct PreviewPage {
               .width('100%')
 
               Row() {
-                Text('ID')
+                Text('标识')
                   .fontColor('#6b7280')
                   .fontSize(14)
                 Blank().layoutWeight(1)

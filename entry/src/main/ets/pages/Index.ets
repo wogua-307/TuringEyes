@@ -7,20 +7,11 @@ struct Index {
   @State message: string = 'Hello World';
   private controller: TabsController = new TabsController();
   @State private currentIndex: number = 0;
-  @State private homeReloadFlag: boolean = false;
-
-  onPageShow() {
-    this.homeReloadFlag = !this.homeReloadFlag
-  }
 
   build() {
     Tabs({ controller: this.controller, barPosition: BarPosition.End }) {
       TabContent() {
-        if (this.homeReloadFlag) {
-          HomePage()
-        } else {
-          HomePage()
-        }
+        HomePage()
       }
       .tabBar(this.TabItem($r('app.string.Tab_Home'), 0, $r('app.media.home_sel'), $r('app.media.home_nor')))
 

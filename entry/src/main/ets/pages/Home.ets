@@ -16,12 +16,16 @@ export struct HomePage {
   @State private photos: PhotoItem[] = []
   @StorageLink('app_favorite_ids') favoriteIds: number[] = []
   @State private previewItem: PhotoItem | undefined = undefined
+  @State private initialized: boolean = false
   private photoDataSource: PexelDataSource = new PexelDataSource(this.photos)
   private scroller: Scroller = new Scroller()
 
   aboutToAppear() {
-    this.initFavorites()
-    this.loadCurated(true)
+    if (!this.initialized) {
+      this.initFavorites()
+      this.loadCurated(true)
+      this.initialized = true
+    }
   }
 
   onPageShow() {
@@ -142,7 +146,10 @@ export struct HomePage {
   }
 
   private openPreview(item: PhotoItem): void {
-    router.pushUrl({ url: 'pages/Preview', params: { item: JSON.stringify(item), favs: JSON.stringify(this.favoriteIds) } })
+    router.pushUrl({
+      url: 'pages/Preview',
+      params: { item: JSON.stringify(item), favs: JSON.stringify(this.favoriteIds) }
+    }, router.RouterMode.Standard)
   }
 
   @Builder
@@ -196,7 +203,7 @@ export struct HomePage {
         Scroll() {
           Row() {
             ForEach(this.tags, (tag: string) => {
-              this.TagChip(tag, this.selectedTag === tag)
+              this.TagChip(tag)
             })
           }
           .padding({ left: 20, right: 20 })
@@ -254,13 +261,13 @@ export struct HomePage {
   }
 
   @Builder
-  TagChip(label: string, active: boolean) {
+  TagChip(label: string) {
     Button(label)
       .type(ButtonType.Capsule)
       .stateEffect(true)
       .enabled(!this.loading)
-      .backgroundColor(active ? '#000' : '#eee')
-      .fontColor(active ? '#fff' : '#333')
+      .backgroundColor((label === this.selectedTag) ? '#000' : '#eee')
+      .fontColor((label === this.selectedTag) ? '#fff' : '#333')
       .margin({ right: 8 })
       .onClick(() => {
         this.onTagClick(label)
