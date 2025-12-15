@@ -209,6 +209,7 @@ export struct OCRPage {
         this.imageUri = result.photoUris[0]
         this.useBuiltin = false
         this.ocrText = ''
+        this.runOCR()
       }
     } catch (error) {
       promptAction.showToast({ message: '选择图片失败' })
@@ -299,104 +300,130 @@ export struct OCRPage {
   build() {
     Stack() {
       Column() {
-      Row() {
-        Text('图像转文字OCR')
-          .fontSize(20)
-          .fontWeight(FontWeight.Bold)
-        Blank().layoutWeight(1)
-      }
-      .width('100%')
-      .padding({ top: 16, left: 20, right: 20 })
-
-      Stack() {
+        // Header
         Row() {
-          if (this.useBuiltin) {
-            Image($r('app.media.1242x2688bb'))
-              .width('100%')
-              .height('100%')
-              .objectFit(ImageFit.Contain)
-          } else if (this.imageUri) {
-            Image(this.imageUri)
+          Text('图像转文字OCR')
+            .fontSize(20)
+            .fontWeight(FontWeight.Bold)
+            .fontColor('#111827')
+          Blank()
+          // History icon placeholder
+          Text('🕒')
+           .fontSize(20)
+        }
+        .width('100%')
+        .padding({ bottom: 16 })
+
+        // Image Playground
+        Stack() {
+          if (this.imageUri || this.useBuiltin) {
+            Image(this.imageUri || (this.useBuiltin ? $r('app.media.1242x2688bb') : ''))
               .width('100%')
               .height('100%')
               .objectFit(ImageFit.Contain)
           } else {
-            Text('选择或拍摄文档')
-              .fontSize(16)
-              .fontColor('#9CA3AF')
+             Column() {
+               Image($r('app.media.ocr_nor')) // Placeholder icon
+                 .width(48)
+                 .height(48)
+                 .fillColor('#3b82f6')
+                 .margin({ bottom: 8 })
+             }.justifyContent(FlexAlign.Center)
+          }
+          
+          // Blue Frame Overlay
+          if (this.imageUri || this.useBuiltin) {
+             // Optional frame visual
           }
         }
-        .align(Alignment.Center)
-        .width('92%')
-        .height(this.previewHeight)
+        .width('100%')
+        .height(360) 
         .backgroundColor('#f5f5f5')
         .borderRadius(16)
+        .clip(true)
+        // .border({ width: 2, color: '#3b82f6' }) // Blue border as requested
+        .margin({ bottom: 16 })
 
+        // Buttons
         Row() {
           Button('拍摄文档')
-            .type(ButtonType.Capsule)
+            .type(ButtonType.Normal)
+            .borderRadius(8)
+            .backgroundColor('#3b82f6') // Blue
+            .fontColor(Color.White)
+            .layoutWeight(1)
+            .height(44)
             .onClick(() => this.pickImage())
+
           Button('导入图片')
-            .type(ButtonType.Capsule)
+            .type(ButtonType.Normal)
+            .borderRadius(8)
+            .backgroundColor('#3b82f6') // Light Gray
+            .fontColor(Color.White)
+            .layoutWeight(1)
+            .height(44)
             .margin({ left: 12 })
             .onClick(() => this.pickImage())
-          Button('使用内置图片')
-            .type(ButtonType.Capsule)
-            .margin({ left: 12 })
-            .onClick(() => {
-              this.useBuiltin = true;
-              this.imageUri = '';
-              this.ocrText = ''
-            })
         }
-        .position({ bottom: 12 })
-      }
-      .align(Alignment.Center)
-      .width('100%')
-      .padding({ top: 12 })
+        .width('100%')
+        .margin({ bottom: 16 })
 
-      Row() {
-        Text(this.recognizing ? '识别中…' : '识别结果')
-          .fontSize(14)
-          .fontColor('#6B7280')
-        Blank().layoutWeight(1)
-        if (this.recognizing) {
-          LoadingProgress().width(24).height(24)
-        } else {
-          Button('开始识别')
-            .type(ButtonType.Capsule)
-            .onClick(() => this.runOCR())
+        // Status
+        Row() {
+          Text(this.recognizing ? '识别中...' : '识别结果')
+            .fontSize(16)
+            .fontWeight(FontWeight.Medium)
+            .fontColor('#111827')
+          Blank()
+          if (this.recognizing) {
+             LoadingProgress()
+               .width(20)
+               .height(20)
+               .color('#3b82f6')
+          }
         }
-      }
-      .width('92%')
-      .padding({ top: 12 })
+        .width('100%')
+        .padding({ bottom: 8 })
 
-      // Removed key input rows as requested
-
-
-      TextArea({ placeholder: '识别文本', text: this.ocrText })
-        .width('92%')
+        // Result Area
+        Stack() {
+            TextArea({ placeholder: '', text: this.ocrText })
+              .width('100%')
+              .height('100%')
+              .borderRadius(12)
+              .backgroundColor(Color.Transparent)
+              .fontColor('#374151')
+              .fontSize(16)
+              .padding(12)
+              .onChange((t: string) => this.ocrText = t)
+        }
         .layoutWeight(1)
+        .width('100%')
+        .backgroundColor(Color.White)
         .borderRadius(12)
-        .backgroundColor('#F9FAFB')
-        .padding(12)
-        .onChange((t: string) => this.ocrText = t)
+        .border({ width: 2, color: '#e879f9' }) // Pink/Purple border
+        .shadow({ radius: 4, color: 'rgba(232, 121, 249, 0.2)' }) // Glow effect
+        
+        Row() {
+             Button('复制')
+               .fontSize(14)
+               .height(32)
+               .backgroundColor('#3b82f6')
+               .fontColor(Color.White)
+               .onClick(() => this.copyText())
+        }.justifyContent(FlexAlign.End).width('100%').padding({top: 8})
+        
+      }
+      .padding(16)
+      .width('100%')
+      .height('100%')
+      .backgroundColor(Color.White)
 
-      Row() {
-        Button('复制')
-          .type(ButtonType.Capsule)
-          .onClick(() => this.copyText())
-      }
-      .width('92%')
-      .padding({ top: 8, bottom: 20 })
-      }
       Text('')
         .hitTestBehavior(HitTestMode.Transparent)
         .width('100%')
         .height('100%')
         .onTouch(() => this.dismissKeyboard())
     }
-    .width('100%')
-    .height('100%')
   }
 }
