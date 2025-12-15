@@ -1,4 +1,4 @@
-import { fetchPexelsCurated, fetchPexelsSearch } from '../services/pexel'
+import { fetchPexelsCurated, fetchPexelsSearch, fetchPexelsRandom } from '../services/pexel'
 import { PhotoItem } from '../types'
 import { PexelDataSource } from './source/PexelDataSource'
 import { hilog } from '@kit.PerformanceAnalysisKit'
@@ -12,7 +12,7 @@ export struct HomePage {
   @State private query: string = ''
   @State private activeTag: string = '精选'
   @State private selectedTag: string = '精选'
-  @State private tags: string[] = ['精选', '圣诞节','星空', '大海', '动物','科技', '宇宙', '自然', '建筑', '人物']
+  @State private tags: string[] = ['精选', '圣诞节','星空', '大海', '动物', '卡通', '汽车', '科技', '宇宙', '自然', '建筑', '人物']
   @State private photos: PhotoItem[] = []
   @StorageLink('app_favorite_ids') favoriteIds: number[] = []
   @State private previewItem: PhotoItem | undefined = undefined
@@ -71,7 +71,7 @@ export struct HomePage {
   private async loadCurated(reset: boolean = false) {
     this.loading = true
     try {
-      const res = await fetchPexelsCurated(reset ? 1 : this.page)
+      const res = reset ? await fetchPexelsRandom() : await fetchPexelsCurated(this.page)
       this.page = res.page
       this.photos = reset ? res.photos : [...this.photos, ...res.photos]
       this.photoDataSource.updateData(this.photos)
