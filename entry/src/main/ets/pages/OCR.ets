@@ -3,11 +3,13 @@ import http from '@ohos.net.http'
 import { fileIo as fs } from '@kit.CoreFileKit'
 import promptAction from '@ohos.promptAction'
 import { util } from '@kit.ArkTS'
+import { pasteboard } from '@kit.BasicServicesKit';
 import preferences from '@ohos.data.preferences'
 import image from '@ohos.multimedia.image'
 import common from '@ohos.app.ability.common'
 import resourceManager from '@ohos.resourceManager'
 import { hilog } from '@kit.PerformanceAnalysisKit'
+import { window } from '@kit.ArkUI'
 
 interface ParsedResult {
   ParsedText?: string
@@ -130,7 +132,7 @@ export struct OCRPage {
         }
         dataUrl = await this.readFileBase64(this.imageUri)
       }
-      hilog.debug(0x0000, 'OCR', 'runOCR 11111', dataUrl)
+      hilog.debug(0x0000, 'OCR', 'runOCR 11111 %{public}s', dataUrl)
       try {
         const httpClient = http.createHttp()
         const apiKey = this.OCR_SPACE_KEY
@@ -142,7 +144,7 @@ export struct OCRPage {
           extraData: body,
           expectDataType: http.HttpDataType.OBJECT
         })
-        hilog.debug(0x0000, 'OCR', 'runOCR 222222', JSON.stringify(resp))
+        hilog.debug(0x0000, 'OCR', 'runOCR 222222 %{public}s', JSON.stringify({ code: resp.responseCode }))
         httpClient.destroy()
         if (resp.responseCode === 200) {
           const result = resp.result as OCRResponse
@@ -156,7 +158,7 @@ export struct OCRPage {
         }
         throw new Error('space failed')
       } catch {
-        hilog.debug(0x0000, 'OCR error', `runOCR 222222 ${dataUrl}`)
+        hilog.debug(0x0000, 'OCR error', 'runOCR 222222 %{public}s', dataUrl)
         const textBaidu = await this.runOCRBaidu(dataUrl)
         this.ocrText = textBaidu
         if (!textBaidu) {
@@ -171,11 +173,27 @@ export struct OCRPage {
     }
   }
 
+  private dismissKeyboard() {
+    // 通过让输入框失去焦点来隐藏软键盘
+    // 在页面中需要有一个输入框的引用，这里使用空操作
+    // 实际应用中可以通过控制输入框的焦点状态来隐藏键盘
+  }
+
   private copyText() {
     if (!this.ocrText) {
       return
     }
-    promptAction.showToast({ message: '已复制' })
+
+    const pasteboardData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, this.ocrText)
+    const systemPasteboard = pasteboard.getSystemPasteboard()
+    systemPasteboard.setData(pasteboardData) //将数据放入剪切板
+    systemPasteboard.getData().then((data) => {
+      if (data) {
+        promptAction.showToast({ message: "复制成功" })
+      } else {
+        promptAction.showToast({ message: "复制失败" })
+      }
+    })
   }
 
   private async pickImage(): Promise<void> {
@@ -197,17 +215,69 @@ export struct OCRPage {
     }
   }
 
-  private async readFileBase64(uri: string): Promise<string> {
+  private async compressToUnder1MB(buffer: ArrayBuffer): Promise<string> {
     try {
-      const file = await fs.open(uri, fs.OpenMode.READ_ONLY)
-      const stat = await fs.stat(uri)
-      const buf = new ArrayBuffer(stat.size)
-      await fs.read(file.fd, buf)
-      await fs.close(file.fd)
-      const u8 = new Uint8Array(buf)
+      const src = image.createImageSource(buffer)
+      // Check original size estimate
+      const info = await src.getImageInfo()
+      let quality = 80
+      let scale = 1.0
+      const packer = image.createImagePacker()
+
+      // Try compressing with quality first
+      while (quality > 0) {
+        const op: image.PackingOption = { format: 'image/jpeg', quality: quality }
+        // If image is too large, we might need to resize.
+        // For simplicity, let's try strict resizing if dimensions are huge.
+        if (info.size.width > 2000 || info.size.height > 2000) {
+          scale = 0.5
+        }
+
+        let pm = await src.createPixelMap()
+        if (scale < 1.0) {
+          pm.scale(scale, scale)
+        }
+        const compressed = await packer.packing(pm, op)
+        pm.release()
+
+        if (compressed.byteLength < 1000 * 1000) {
+          const u8 = new Uint8Array(compressed)
+          const b64 = new util.Base64Helper().encodeToStringSync(u8)
+          return 'data:image/jpeg;base64,' + b64
+        }
+        quality -= 20
+        if (scale === 1.0 && quality < 40) {
+          // if quality dropped low and still too big, force scale down
+          scale = 0.7
+          quality = 80 // reset quality for scaled image
+        } else if (scale < 1.0 && quality < 40) {
+          scale *= 0.8 // shrink more
+          quality = 80
+        }
+      }
+      // If loop finishes (unlikely to fail reducing enough), just return original as fallback
+      const u8 = new Uint8Array(buffer)
       const b64 = new util.Base64Helper().encodeToStringSync(u8)
       return 'data:image/jpeg;base64,' + b64
     } catch (e) {
+      hilog.error(0x0000, 'OCR', 'compress error %{public}s', JSON.stringify(e))
+      // Fallback
+      const u8 = new Uint8Array(buffer)
+      const b64 = new util.Base64Helper().encodeToStringSync(u8)
+      return 'data:image/jpeg;base64,' + b64
+    }
+  }
+
+  private async readFileBase64(uri: string): Promise<string> {
+    try {
+      const file = await fs.open(uri, fs.OpenMode.READ_ONLY)
+      const stat = await fs.stat(file.fd)
+      const buf = new ArrayBuffer(stat.size)
+      await fs.read(file.fd, buf)
+      await fs.close(file.fd)
+      return await this.compressToUnder1MB(buf)
+    } catch (e) {
+      hilog.error(0x0000, 'OCR', 'readFileBase64 error %{public}s', JSON.stringify(e))
       throw new Error('read file failed')
     }
   }
@@ -218,8 +288,8 @@ export struct OCRPage {
       const resourceMgr = ctx.resourceManager
       // access media resource directly using the resource ID
       const content = await resourceMgr.getMediaContent($r('app.media.1242x2688bb').id)
-      const b64 = new util.Base64Helper().encodeToStringSync(content)
-      return 'data:image/jpeg;base64,' + b64
+      const buf = content.buffer as ArrayBuffer
+      return await this.compressToUnder1MB(buf)
     } catch (e) {
       hilog.error(0x0000, 'OCR', 'readRawBase64 error %{public}s', JSON.stringify(e))
       throw new Error('read builtin failed')
@@ -227,7 +297,8 @@ export struct OCRPage {
   }
 
   build() {
-    Column() {
+    Stack() {
+      Column() {
       Row() {
         Text('图像转文字OCR')
           .fontSize(20)
@@ -258,7 +329,7 @@ export struct OCRPage {
         .align(Alignment.Center)
         .width('92%')
         .height(this.previewHeight)
-        .backgroundColor('#0f172a')
+        .backgroundColor('#f5f5f5')
         .borderRadius(16)
 
         Row() {
@@ -303,13 +374,12 @@ export struct OCRPage {
       // Removed key input rows as requested
 
 
-      TextInput({ placeholder: '识别文本', text: this.ocrText })
+      TextArea({ placeholder: '识别文本', text: this.ocrText })
         .width('92%')
-        .height(180)
+        .layoutWeight(1)
         .borderRadius(12)
         .backgroundColor('#F9FAFB')
         .padding(12)
-        .maxLines(6)
         .onChange((t: string) => this.ocrText = t)
 
       Row() {
@@ -319,6 +389,12 @@ export struct OCRPage {
       }
       .width('92%')
       .padding({ top: 8, bottom: 20 })
+      }
+      Text('')
+        .hitTestBehavior(HitTestMode.Transparent)
+        .width('100%')
+        .height('100%')
+        .onTouch(() => this.dismissKeyboard())
     }
     .width('100%')
     .height('100%')

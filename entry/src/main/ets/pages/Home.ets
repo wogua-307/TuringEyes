@@ -4,6 +4,7 @@ import { PexelDataSource } from './source/PexelDataSource'
 import { hilog } from '@kit.PerformanceAnalysisKit'
 import preferences from '@ohos.data.preferences'
 import router from '@ohos.router'
+import { window } from '@kit.ArkUI'
 
 @Component
 export struct HomePage {
@@ -12,7 +13,8 @@ export struct HomePage {
   @State private query: string = ''
   @State private activeTag: string = '精选'
   @State private selectedTag: string = '精选'
-  @State private tags: string[] = ['精选', '圣诞节','星空', '大海', '动物', '卡通', '汽车', '科技', '宇宙', '自然', '建筑', '人物']
+  @State private tags: string[] =
+    ['精选', '圣诞节', '星空', '大海', '动物', '卡通', '汽车', '科技', '宇宙', '自然', '建筑', '人物']
   @State private photos: PhotoItem[] = []
   @StorageLink('app_favorite_ids') favoriteIds: number[] = []
   @State private previewItem: PhotoItem | undefined = undefined
@@ -153,6 +155,12 @@ export struct HomePage {
     }, router.RouterMode.Standard)
   }
 
+  private dismissKeyboard() {
+    // 通过让输入框失去焦点来隐藏软键盘
+    // 在页面中需要有一个输入框的引用，这里使用空操作
+    // 实际应用中可以通过控制输入框的焦点状态来隐藏键盘
+  }
+
   @Builder
   itemFoot() {
     LoadingProgress()
@@ -248,14 +256,19 @@ export struct HomePage {
           .textAlign(TextAlign.Center)
           .width('100%')
       }
-        .type(ButtonType.Circle)
-        .width(45)
-        .height(45)
-        .backgroundColor('#f5f5f5')
-        .margin({ right: 20, bottom: 28 })
+      .type(ButtonType.Circle)
+      .width(45)
+      .height(45)
+      .backgroundColor('#f5f5f5')
+      .margin({ right: 20, bottom: 28 })
         .onClick(() => {
           this.scroller.scrollTo({ xOffset: 0, yOffset: 0, animation: { duration: 300 } })
         })
+      Text('')
+        .hitTestBehavior(HitTestMode.Transparent)
+        .width('100%')
+        .height('100%')
+        .onTouch(() => this.dismissKeyboard())
     }
     .width('100%')
     .height('100%')
@@ -278,7 +291,9 @@ export struct HomePage {
   // 使用 WaterFlow 渲染，无需行分组
 
   private async loadMore() {
-    if (this.photos.length >= 320) return
+    if (this.photos.length >= 320) {
+      return
+    }
     const nextPage = this.page + 1
     this.loading = true
     try {
@@ -379,12 +394,12 @@ export struct PhotoCardItem {
             .width(20)
             .height(20)
         }
-          .type(ButtonType.Circle)
-          .width(32)
-          .height(32)
-          .backgroundColor('#ffffff')
-          .margin({ right: 12, top: 12 })
-          .onClick(() => this.toggleFavorite(this.item))
+        .type(ButtonType.Circle)
+        .width(32)
+        .height(32)
+        .backgroundColor('#ffffff')
+        .margin({ right: 12, top: 12 })
+        .onClick(() => this.toggleFavorite(this.item))
       }
       .margin({ bottom: 0 })
       .width('100%')
