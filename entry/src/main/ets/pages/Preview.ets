@@ -3,12 +3,14 @@ import { PhotoItem } from '../types'
 import { hilog } from '@kit.PerformanceAnalysisKit'
 import preferences from '@ohos.data.preferences'
 import { rcp } from '@kit.RemoteCommunicationKit'
+import http from '@ohos.net.http'
 import { photoAccessHelper } from '@kit.MediaLibraryKit'
-import { fileIo as fs } from '@kit.CoreFileKit'
+import { fileIo } from '@kit.CoreFileKit'
+import image from '@ohos.multimedia.image'
 import { BusinessError } from '@kit.BasicServicesKit'
 import { window } from '@kit.ArkUI'
-import { common } from '@kit.AbilityKit'
 import promptAction from '@ohos.promptAction'
+import { common, abilityAccessCtrl } from '@kit.AbilityKit';
 
 interface PhotoAsset {
   uri: string
@@ -82,27 +84,41 @@ export struct PreviewPage {
       return
     }
 
+    const ctx = getContext(this) as common.UIAbilityContext
     try {
+      const atManager = abilityAccessCtrl.createAtManager()
+      await atManager.requestPermissionsFromUser(ctx, ['ohos.permission.WRITE_IMAGEVIDEO'])
       promptAction.showToast({ message: 'Downloading...' })
-      // 1. Download image
-      const session = rcp.createSession()
-      const req = new rcp.Request(this.item.src.large || this.item.src.original, 'GET')
-      const resp = await session.fetch(req)
-      session.close()
+      // 1. Create album asset immediately after user click
+      const phHelper = photoAccessHelper.getPhotoAccessHelper(ctx)
+      const assetUri: string = await phHelper.createAsset(photoAccessHelper.PhotoType.IMAGE, 'jpg') as string
+      const file: fileIo.File = fileIo.openSync(assetUri, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE)
 
-      if (resp.statusCode !== 200 || !resp.body) {
-        throw new Error('Download failed')
+
+      // 2. 流式下载并写入
+      const client = http.createHttp()
+      try {
+        client.on('dataReceive', (chunk: ArrayBuffer) => {
+          const u8 = chunk instanceof ArrayBuffer ? new Uint8Array(chunk) : new Uint8Array(chunk as ArrayBuffer)
+          fileIo.writeSync(file.fd, u8)
+        })
+        client.on('dataEnd', () => {
+          fileIo.closeSync(file.fd)
+          promptAction.showToast({ message: 'Image saved successfully' })
+        })
+        const url = this.item.src.large || this.item.src.original
+        client.requestInStream(url, { method: http.RequestMethod.GET, connectTimeout: 5000 },
+          (err: BusinessError<void>, _code: number) => {
+            if (err) {
+              hilog.error(0x0000, 'Preview', 'requestInStream error %{public}s', JSON.stringify(err))
+            }
+          })
+      } catch (err) {
+        fileIo.closeSync(file.fd)
+        throw new Error(String(err))
+      } finally {
+        client.destroy()
       }
-      const buffer = resp.body
-      // 2. Save to Media Library
-      const context = getContext(this)
-      const phHelper = photoAccessHelper.getPhotoAccessHelper(context)
-      const assetUri = await phHelper.createAsset(photoAccessHelper.PhotoType.IMAGE, 'jpg') as string
-      const file = await fs.open(assetUri, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE)
-      await fs.write(file.fd, buffer)
-      await fs.close(file.fd)
-
-      promptAction.showToast({ message: 'Image saved successfully' })
 
     } catch (e) {
       hilog.error(0x0000, 'Preview', 'saveImage error %{public}s', JSON.stringify(e))
@@ -141,13 +157,16 @@ export struct PreviewPage {
 
                 Blank().layoutWeight(1)
 
-                Button(this.isFavorite(this.item.id) ? '❤' : '♡')
-                  .type(ButtonType.Circle)
-                  .width(32)
-                  .height(32)
-                  .fontColor(this.isFavorite(this.item.id) ? '#ff4d4f' : '#333')
-                  .backgroundColor('#ffffff')
-                  .onClick(() => this.toggleFavorite(this.item!.id))
+                Button() {
+                  Image(this.isFavorite(this.item.id) ? $r('app.media.collection') : $r('app.media.collection_no'))
+                    .width(20)
+                    .height(20)
+                }
+                .type(ButtonType.Circle)
+                .width(32)
+                .height(32)
+                .backgroundColor('#ffffff')
+                .onClick(() => this.toggleFavorite(this.item!.id))
               }
               .width('100%')
               .padding({ left: 16, right: 16, top: 16 })
@@ -163,7 +182,7 @@ export struct PreviewPage {
             .borderRadius(16)
             .clip(true)
             .backgroundColor('#000')
-            
+
             // Photographer Info
             Row() {
               Row() {
@@ -194,7 +213,12 @@ export struct PreviewPage {
               .alignItems(HorizontalAlign.Start)
             }
             .width('100%')
-            .padding({ left: 20, right: 20, top: 20, bottom: 8 })
+            .padding({
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom: 8
+            })
 
             // Details Card
             Column() {
@@ -244,16 +268,65 @@ export struct PreviewPage {
         .layoutWeight(1)
         .scrollBar(BarState.Off)
       }
-      Button('保存图片', { type: ButtonType.Capsule, stateEffect: true })
-        .fontSize(16)
-        .fontWeight(FontWeight.Medium)
-        .onClick(() => this.saveImage())
-        .backgroundColor('#16a34a')
-        .fontColor(Color.White)
-        .width('90%')
-        .height(50)
-        .shadow({ radius: 8, color: 'rgba(22, 163, 74, 0.24)', offsetY: 4 })
-        .margin({ bottom: this.bottomInset + 8 })
+      Column() {
+        SaveButton()
+          .onClick(async (event: ClickEvent, result: SaveButtonOnClickResult) => {
+            if (result === SaveButtonOnClickResult.SUCCESS) {
+              const context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
+              // 免去权限申请和权限请求等环节，获得临时授权，保存对应图片
+              // savePhotoToGallery(context);
+              let helper = photoAccessHelper.getPhotoAccessHelper(context);
+              try {
+                http.createHttp().request(
+                  this.item?.src.large || this.item?.src.original,
+                  { expectDataType: http.HttpDataType.ARRAY_BUFFER }
+                ).then(async (res: http.HttpResponse) => {
+                  console.info('res', JSON.stringify(res))
+                  // 将图片资源转为像素图（PixelMap）
+                  let pixelMap: image.PixelMap =
+                    await image.createImageSource(res.result as ArrayBuffer).createPixelMap()
+
+                  // onClick触发后10秒内通过createAsset接口创建图片文件，10秒后createAsset权限收回。
+                  let uri: string = await helper.createAsset(photoAccessHelper.PhotoType.IMAGE, 'jpg');
+                  // 使用uri打开文件，可以持续写入内容，写入过程不受时间限制
+                  let file: fileIo.File = await fileIo.open(uri, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE);
+                  let packOpts: image.PackingOption = { format: 'image/png', quality: 100 }
+                  const imagePacker: image.ImagePacker = image.createImagePacker();
+                  return imagePacker.packToFile(pixelMap, file.fd, packOpts).finally(() => {
+                    imagePacker.release(); //释放
+                    fileIo.close(file.fd);
+                    promptAction.showToast({
+                      message: '图片已保存至相册',
+                      duration: 2000
+                    });
+                  });
+                }).catch(() => {
+                  console.info('catch')
+                })
+              } catch (error) {
+                const err: BusinessError = error as BusinessError;
+                console.error(`Failed to save photo. Code is ${err.code}, message is ${err.message}`);
+              }
+
+            } else {
+              promptAction.showToast({
+                message: '设置权限失败!',
+                duration: 2000
+              });
+            }
+          })
+          .fontSize(16)
+          .fontWeight(FontWeight.Medium)
+          .backgroundColor('#16a34a')
+          .fontColor(Color.White)
+          .width('100%')
+          .height('100%')
+      }
+
+      .width('90%')
+      .height(50)
+      // .shadow({ radius: 8, color: 'rgba(22, 163, 74, 0.24)', offsetY: 4 })
+      .margin({ bottom: this.bottomInset + 8 })
     }
     .width('100%')
     .height('100%')

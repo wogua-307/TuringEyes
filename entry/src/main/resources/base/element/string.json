@@ -22,11 +22,11 @@
     },
     {
       "name": "permission_reason_read_media",
-      "value": "读取媒体库图片用于展示与预览"
+      "value": "需要读取相册内容"
     },
     {
       "name": "permission_reason_write_media",
-      "value": "将图片保存至系统相册"
+      "value": "需要保存图片到相册"
     },
     {
       "name": "search",

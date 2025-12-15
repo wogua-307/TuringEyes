@@ -11,7 +11,8 @@ export struct HomePage {
   @State private page: number = 1
   @State private query: string = ''
   @State private activeTag: string = '精选'
-  @State private tags: string[] = ['Curated', 'Nature', 'Architecture', 'People']
+  @State private selectedTag: string = '精选'
+  @State private tags: string[] = ['精选', '圣诞节','星空', '大海', '动物','科技', '宇宙', '自然', '建筑', '人物']
   @State private photos: PhotoItem[] = []
   @StorageLink('app_favorite_ids') favoriteIds: number[] = []
   @State private previewItem: PhotoItem | undefined = undefined
@@ -42,6 +43,13 @@ export struct HomePage {
       this.favoriteIds = JSON.parse(stored)
     } catch (e) {
       hilog.error(0x0000, 'Home', 'initFavorites error %{public}s', JSON.stringify(e))
+      // Handle preference corruption (error 15500000)
+      try {
+        await preferences.deletePreferences(ctx, 'photo_favorites')
+        this.favoriteIds = []
+      } catch (e2) {
+        hilog.error(0x0000, 'Home', 'reset preferences error %{public}s', JSON.stringify(e2))
+      }
     }
   }
 
@@ -64,6 +72,7 @@ export struct HomePage {
       this.photos = reset ? res.photos : [...this.photos, ...res.photos]
       this.photoDataSource.updateData(this.photos)
       this.activeTag = '精选'
+      this.selectedTag = '精选'
     } catch (e) {
       hilog.error(0x0000, 'Home', 'loadCurated error %{public}s', JSON.stringify(e))
     } finally {
@@ -86,23 +95,34 @@ export struct HomePage {
   }
 
   private onTagClick(tag: string) {
+    if (this.loading) {
+      return
+    }
     this.activeTag = tag
+    this.selectedTag = tag
     if (tag === '精选') {
       this.loadCurated(true)
     } else {
       this.query = tag
-      this.doSearch(tag, true)
+      this.doSearch(this.normalizeQuery(tag), true)
     }
   }
 
   private onSearchSubmit() {
     const q = this.query.trim()
     if (!q) {
+      this.selectedTag = '精选'
       this.loadCurated(true)
       return
     }
-    this.activeTag = ''
-    this.doSearch(q, true)
+    if (this.tags.indexOf(q) !== -1) {
+      this.activeTag = q
+      this.selectedTag = q
+    } else {
+      this.activeTag = ''
+      this.selectedTag = ''
+    }
+    this.doSearch(this.normalizeQuery(q), true)
   }
 
   private isFavorite(id: number): boolean {
@@ -148,7 +168,7 @@ export struct HomePage {
           }
           .width(40)
 
-          Text('LensFocus')
+          Text($r('app.string.app_name'))
             .fontSize(20)
             .fontWeight(FontWeight.Bold)
             .margin({ left: 8 })
@@ -157,14 +177,14 @@ export struct HomePage {
         .padding({ top: 24, left: 20, right: 20 })
 
         Row() {
-          TextInput({ placeholder: 'Architecture', text: this.query })
+          TextInput({ placeholder: '输入关键词', text: this.query })
             .height(48)
             .borderRadius(12)
             .backgroundColor('#f4f4f6')
             .padding({ left: 16 })
             .layoutWeight(1)
             .onChange((v: string) => this.query = v)
-          Button('Search')
+          Button('搜索')
             .type(ButtonType.Capsule)
             .margin({ left: 12 })
             .height(48)
@@ -176,7 +196,7 @@ export struct HomePage {
         Scroll() {
           Row() {
             ForEach(this.tags, (tag: string) => {
-              this.TagChip(tag, this.activeTag === tag)
+              this.TagChip(tag, this.selectedTag === tag)
             })
           }
           .padding({ left: 20, right: 20 })
@@ -237,10 +257,14 @@ export struct HomePage {
   TagChip(label: string, active: boolean) {
     Button(label)
       .type(ButtonType.Capsule)
+      .stateEffect(true)
+      .enabled(!this.loading)
       .backgroundColor(active ? '#000' : '#eee')
       .fontColor(active ? '#fff' : '#333')
       .margin({ right: 8 })
-      .onClick(() => this.onTagClick(label))
+      .onClick(() => {
+        this.onTagClick(label)
+      })
   }
 
   // 使用 WaterFlow 渲染，无需行分组
@@ -250,13 +274,13 @@ export struct HomePage {
     const nextPage = this.page + 1
     this.loading = true
     try {
-      if (this.activeTag === '精选' || this.activeTag === 'Curated') {
+      if (this.activeTag === '精选') {
         const res = await fetchPexelsCurated(nextPage)
         this.page = res.page
         this.photos = [...this.photos, ...res.photos]
         this.photoDataSource.updateData(this.photos)
       } else {
-        const q = this.activeTag || this.query || 'Curated'
+        const q = this.normalizeQuery(this.activeTag || this.query || 'Curated')
         const res = await fetchPexelsSearch(q, nextPage)
         this.page = res.page
         this.photos = [...this.photos, ...res.photos]
@@ -267,6 +291,22 @@ export struct HomePage {
     } finally {
       this.loading = false
     }
+  }
+
+  private tagQueryMap: Record<string, string> = {
+    '圣诞节': 'christmas',
+    '星空': 'stars',
+    '大海': 'ocean',
+    '科技': 'technology',
+    '宇宙': 'space',
+    '动物': 'animals',
+    '自然': 'nature',
+    '建筑': 'architecture',
+    '人物': 'people'
+  }
+
+  private normalizeQuery(q: string): string {
+    return this.tagQueryMap[q] || q
   }
 }
 
@@ -305,7 +345,7 @@ export struct PhotoCardItem {
             .height('100%')
         }
 
-        Image(this.item.src.medium)
+        Image(this.item.src.large)
           .objectFit(ImageFit.Cover)
           .width('100%')
           .height('100%')
@@ -326,11 +366,14 @@ export struct PhotoCardItem {
           .height('100%')
         }
 
-        Button(this.isFav(this.item.id) ? '❤' : '♡')
+        Button() {
+          Image(this.isFav(this.item.id) ? $r('app.media.collection') : $r('app.media.collection_no'))
+            .width(20)
+            .height(20)
+        }
           .type(ButtonType.Circle)
           .width(32)
           .height(32)
-          .fontColor(this.isFav(this.item.id) ? '#ff4d4f' : '#333')
           .backgroundColor('#ffffff')
           .margin({ right: 12, top: 12 })
           .onClick(() => this.toggleFavorite(this.item))

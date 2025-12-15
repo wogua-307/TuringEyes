@@ -1,6 +1,20 @@
 {
   "app": {
-    "signingConfigs": [],
+    "signingConfigs": [
+      {
+        "name": "default",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "/Users/modao/.ohos/config/default_TuringEye_cbmLT_AZenQPErlCcjbNg3mfStjXK8TFsHuiktHtR_Q=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001AE95D2B5D288A64AF0CEEBC5DD373679B7A29E340B28F27392ABF8C57FED010AFCE4D8AD37DBC",
+          "profile": "/Users/modao/.ohos/config/default_TuringEye_cbmLT_AZenQPErlCcjbNg3mfStjXK8TFsHuiktHtR_Q=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "/Users/modao/.ohos/config/default_TuringEye_cbmLT_AZenQPErlCcjbNg3mfStjXK8TFsHuiktHtR_Q=.p12",
+          "storePassword": "0000001A1A4E796393CC8E883694F49C019CA3E3B3EA03706F7805E4510DEF537D739C0B8245327CB2A9"
+        }
+      }
+    ],
     "products": [
       {
         "name": "default",
