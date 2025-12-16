@@ -1,5 +1,7 @@
 import router from '@ohos.router'
 import { common } from '@kit.AbilityKit'
+import promptAction from '@ohos.promptAction'
+import { pasteboard } from '@kit.BasicServicesKit'
 import { OCRHistoryManager, OCRRecord } from '../helpers/OCRHistoryManager'
 
 @Entry
@@ -16,20 +18,36 @@ struct OCRHistoryPage {
     this.historyRecords = await OCRHistoryManager.getRecords(ctx)
   }
 
+  private copyText(text: string) {
+    if (!text) {
+      return
+    }
+    const pasteboardData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, text)
+    const systemPasteboard = pasteboard.getSystemPasteboard()
+    systemPasteboard.setData(pasteboardData)
+    systemPasteboard.getData().then((data) => {
+      if (data) {
+        promptAction.showToast({ message: "复制成功" })
+      } else {
+        promptAction.showToast({ message: "复制失败" })
+      }
+    })
+  }
+
   build() {
     Column() {
       // Header
       Row() {
-        Image($r('app.media.startIcon')) // Back Arrow placeholder if no explicit resource
+        Image($r('app.media.startIcon'))// Back Arrow placeholder if no explicit resource
           // Using a simple Text arrow for now if unsure about resources, or standard pattern
           .width(0)
           .height(0)
 
         Button() {
           Text('‹')
-           .fontSize(32)
-           .fontColor('#111827')
-           .offset({ y: -2 })
+            .fontSize(32)
+            .fontColor('#111827')
+            .offset({ y: -2 })
         }
         .type(ButtonType.Normal)
         .backgroundColor(Color.Transparent)
@@ -38,7 +56,7 @@ struct OCRHistoryPage {
         })
         .width(44)
         .height(44)
-        
+
         Text('识别历史')
           .fontSize(20)
           .fontWeight(FontWeight.Bold)
@@ -46,15 +64,15 @@ struct OCRHistoryPage {
           .layoutWeight(1)
           .textAlign(TextAlign.Center)
           .margin({ right: 44 }) // Balance the back button
-          
+
         Text('清空')
           .fontColor(Color.Red)
           .fontSize(16)
           .margin({ right: 16 })
           .onClick(async () => {
-             const ctx = getContext(this) as common.UIAbilityContext
-             await OCRHistoryManager.clearHistory(ctx)
-             this.loadHistory()
+            const ctx = getContext(this) as common.UIAbilityContext
+            await OCRHistoryManager.clearHistory(ctx)
+            this.loadHistory()
           })
           .position({ x: '100%', y: 12 })
           .markAnchor({ x: '100%', y: 0 }) // Align right
@@ -67,10 +85,10 @@ struct OCRHistoryPage {
 
       if (this.historyRecords.length === 0) {
         Column() {
-           Text('暂无历史记录')
-             .fontColor('#9ca3af')
-             .fontSize(16)
-             .margin({ top: 100 })
+          Text('暂无历史记录')
+            .fontColor('#9ca3af')
+            .fontSize(16)
+            .margin({ top: 100 })
         }
         .width('100%')
         .layoutWeight(1)
@@ -85,7 +103,7 @@ struct OCRHistoryPage {
                   .objectFit(ImageFit.Cover)
                   .borderRadius(8)
                   .backgroundColor('#f3f4f6')
-                
+
                 Column() {
                   Text(new Date(item.timestamp).toLocaleString())
                     .fontSize(12)
@@ -101,26 +119,43 @@ struct OCRHistoryPage {
                 .layoutWeight(1)
                 .alignItems(HorizontalAlign.Start)
                 .padding({ left: 12, top: 2, bottom: 2 })
+
+                Button('复制')
+                  .fontSize(12)
+                  .height(28)
+                  .backgroundColor('#3b82f6')
+                  .fontColor(Color.White)
+                  .margin({ left: 8 })
+                  .onClick((event) => {
+                    // event.stopPropagation() is not always available or consistent for Button inside ListItem depending on API version,
+                    // but usually Button onClick priority handles it. If issues arise, we check API.
+                    this.copyText(item.text)
+                  })
               }
               .width('100%')
               .padding(12)
               .backgroundColor(Color.White)
               .onClick(() => {
-                 // Return result
-                 router.back({
-                   url: 'pages/OCR',
-                   params: {
-                     selectedRecord: JSON.stringify(item)
-                   }
-                 })
+                // Return result
+                router.back({
+                  url: 'pages/OCR',
+                  params: {
+                    selectedRecord: JSON.stringify(item)
+                  }
+                })
               })
             }
-            .swipeAction({ end: this.DeleteButton(item) }) 
+            .swipeAction({ end: this.DeleteButton(item) })
           })
         }
         .width('100%')
         .layoutWeight(1)
-        .divider({ strokeWidth: 0.5, color: '#f3f4f6', startMargin: 16, endMargin: 16 })
+        .divider({
+          strokeWidth: 0.5,
+          color: '#f3f4f6',
+          startMargin: 16,
+          endMargin: 16
+        })
       }
     }
     .width('100%')
@@ -128,18 +163,19 @@ struct OCRHistoryPage {
     .backgroundColor('#ffffff')
   }
 
-  @Builder DeleteButton(item: OCRRecord) {
+  @Builder
+  DeleteButton(item: OCRRecord) {
     Button() {
-       Text('删除')
-         .fontColor(Color.White)
+      Text('删除')
+        .fontColor(Color.White)
     }
     .width(80)
     .height('100%')
     .type(ButtonType.Normal)
     .backgroundColor(Color.Red)
     .onClick(async () => {
-       // Ideally OCRHistoryManager should support deleting single item
-       // For now, we do nothing or implement deleteSingle
+      // Ideally OCRHistoryManager should support deleting single item
+      // For now, we do nothing or implement deleteSingle
     })
   }
 }

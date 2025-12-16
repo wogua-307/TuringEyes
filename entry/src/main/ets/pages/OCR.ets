@@ -140,7 +140,6 @@ export struct OCRPage {
         }
         dataUrl = await this.readFileBase64(this.imageUri)
       }
-      hilog.debug(0x0000, 'OCR', 'runOCR 11111 %{public}s', dataUrl)
       try {
         const httpClient = http.createHttp()
         const apiKey = this.OCR_SPACE_KEY
@@ -152,7 +151,6 @@ export struct OCRPage {
           extraData: body,
           expectDataType: http.HttpDataType.OBJECT
         })
-        hilog.debug(0x0000, 'OCR', 'runOCR 222222 %{public}s', JSON.stringify({ code: resp.responseCode }))
         httpClient.destroy()
         if (resp.responseCode === 200) {
           const result = resp.result as OCRResponse
@@ -166,16 +164,15 @@ export struct OCRPage {
         }
         throw new Error('space failed')
       } catch {
-        hilog.debug(0x0000, 'OCR error', 'runOCR 222222 %{public}s', dataUrl)
         const textBaidu = await this.runOCRBaidu(dataUrl)
         this.ocrText = textBaidu
         if (!textBaidu) {
           throw new Error('baidu empty')
         }
-        promptAction.showToast({ message: '已切换百度识别完成' })
+        // promptAction.showToast({ message: '已切换百度识别完成' })
       }
     } catch (e) {
-      promptAction.showToast({ message: '识别失败，请检查网络或密钥' })
+      promptAction.showToast({ message: '识别失败，请检查网络' })
     } finally {
       this.recognizing = false
       if (this.ocrText && !this.useBuiltin && this.imageUri) {
@@ -318,13 +315,13 @@ export struct OCRPage {
             .fontSize(20)
             .fontWeight(FontWeight.Bold)
             .fontColor('#111827')
-          Blank()
-          // History icon placeholder
-          Text('🕒')
-            .fontSize(24)
-            .onClick(() => {
-              this.openHistory()
-            })
+          // Blank()
+          // // History icon placeholder
+          // Text('🕒')
+          //   .fontSize(24)
+          //   .onClick(() => {
+          //     this.openHistory()
+          //   })
         }
         .width('100%')
         .padding({ bottom: 16 })
@@ -420,7 +417,7 @@ export struct OCRPage {
         .width('100%')
         .backgroundColor(Color.White)
         .borderRadius(12)
-        .border({ width: 2, color: '#e879f9' }) // Pink/Purple border
+        .border({ width: 2, color: 'rgba(232,121,249, 0.3)' }) // Pink/Purple border
         .shadow({ radius: 4, color: 'rgba(232, 121, 249, 0.2)' }) // Glow effect
 
         Row() {

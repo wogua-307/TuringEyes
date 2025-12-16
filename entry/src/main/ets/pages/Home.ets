@@ -192,14 +192,14 @@ export struct HomePage {
             .fontWeight(FontWeight.Bold)
             .margin({ left: 8 })
 
-          Blank()
-
-          Image($r('app.media.collection'))
-            .width(28)
-            .height(28)
-            .onClick(() => {
-              router.pushUrl({ url: 'pages/PicCollect' })
-            })
+          // Blank()
+          //
+          // Image($r('app.media.collection'))
+          //   .width(28)
+          //   .height(28)
+          //   .onClick(() => {
+          //     router.pushUrl({ url: 'pages/PicCollect' })
+          //   })
         }
         .width('100%')
         .padding({ top: 24, left: 20, right: 20 })
