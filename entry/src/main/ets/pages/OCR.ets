@@ -10,6 +10,8 @@ import common from '@ohos.app.ability.common'
 import resourceManager from '@ohos.resourceManager'
 import { hilog } from '@kit.PerformanceAnalysisKit'
 import { window } from '@kit.ArkUI'
+import router from '@ohos.router'
+import { OCRHistoryManager, OCRRecord } from '../helpers/OCRHistoryManager'
 
 interface ParsedResult {
   ParsedText?: string
@@ -49,20 +51,26 @@ export struct OCRPage {
   @State private lang: string = 'chs'
   @State private useBuiltin: boolean = false
   // Hardcoded keys as requested
-  private readonly BAIDU_API_KEY =
-    '7330561' // Note: This looks like AppID, but user labeled it AppID. Wait, user said API Key: 8OlOdr1aXNueL3Ul2mmSYSba
-  // Re-checking user input:
-  // AppID：7330561
-  // API Key：8OlOdr1aXNueL3Ul2mmSYSba
-  // Secret Key：QP6sFkEn0pHrrS7x73jf6TVAps5nEiLG
-  // OCR space appkey：K88917080488957
-
   private readonly BAIDU_AK = '8OlOdr1aXNueL3Ul2mmSYSba'
   private readonly BAIDU_SK = 'QP6sFkEn0pHrrS7x73jf6TVAps5nEiLG'
   private readonly OCR_SPACE_KEY = 'K88917080488957'
 
-  aboutToAppear() {
-    // No longer need to load keys
+  onPageShow() {
+    const params = router.getParams() as Record<string, string>
+    if (params && params.selectedRecord) {
+      try {
+        const item = JSON.parse(params.selectedRecord) as OCRRecord
+        this.ocrText = item.text
+        this.imageUri = 'file://' + item.imagePath
+        this.useBuiltin = false
+      } catch (e) {
+        hilog.error(0x0000, 'OCR', 'parse history param error %{public}s', JSON.stringify(e))
+      }
+    }
+  }
+
+  private openHistory() {
+    router.pushUrl({ url: 'pages/OCRHistory' })
   }
 
   private async getBaiduToken(): Promise<string> {
@@ -170,6 +178,10 @@ export struct OCRPage {
       promptAction.showToast({ message: '识别失败，请检查网络或密钥' })
     } finally {
       this.recognizing = false
+      if (this.ocrText && !this.useBuiltin && this.imageUri) {
+        const ctx = getContext(this) as common.UIAbilityContext
+        OCRHistoryManager.saveRecord(ctx, this.imageUri, this.ocrText)
+      }
     }
   }
 
@@ -288,7 +300,7 @@ export struct OCRPage {
       const ctx = getContext(this)
       const resourceMgr = ctx.resourceManager
       // access media resource directly using the resource ID
-      const content = await resourceMgr.getMediaContent($r('app.media.1242x2688bb').id)
+      const content = await resourceMgr.getMediaContent($r('app.media.ocr_nor').id)
       const buf = content.buffer as ArrayBuffer
       return await this.compressToUnder1MB(buf)
     } catch (e) {
@@ -309,7 +321,10 @@ export struct OCRPage {
           Blank()
           // History icon placeholder
           Text('🕒')
-           .fontSize(20)
+            .fontSize(24)
+            .onClick(() => {
+              this.openHistory()
+            })
         }
         .width('100%')
         .padding({ bottom: 16 })
@@ -317,27 +332,27 @@ export struct OCRPage {
         // Image Playground
         Stack() {
           if (this.imageUri || this.useBuiltin) {
-            Image(this.imageUri || (this.useBuiltin ? $r('app.media.1242x2688bb') : ''))
+            Image(this.imageUri || (this.useBuiltin ? $r('app.media.ocr_nor') : ''))
               .width('100%')
               .height('100%')
               .objectFit(ImageFit.Contain)
           } else {
-             Column() {
-               Image($r('app.media.ocr_nor')) // Placeholder icon
-                 .width(48)
-                 .height(48)
-                 .fillColor('#3b82f6')
-                 .margin({ bottom: 8 })
-             }.justifyContent(FlexAlign.Center)
+            Column() {
+              Image($r('app.media.ocr_nor'))// Placeholder icon
+                .width(48)
+                .height(48)
+                .fillColor('#3b82f6')
+                .margin({ bottom: 8 })
+            }.justifyContent(FlexAlign.Center)
           }
-          
+
           // Blue Frame Overlay
           if (this.imageUri || this.useBuiltin) {
-             // Optional frame visual
+            // Optional frame visual
           }
         }
         .width('100%')
-        .height(360) 
+        .height(360)
         .backgroundColor('#f5f5f5')
         .borderRadius(16)
         .clip(true)
@@ -349,20 +364,24 @@ export struct OCRPage {
           Button('拍摄文档')
             .type(ButtonType.Normal)
             .borderRadius(8)
-            .backgroundColor('#3b82f6') // Blue
+            .backgroundColor('#3b82f6')
             .fontColor(Color.White)
             .layoutWeight(1)
             .height(44)
+            .opacity(this.recognizing ? 0.5 : 1.0)
+            .enabled(!this.recognizing)
             .onClick(() => this.pickImage())
 
           Button('导入图片')
             .type(ButtonType.Normal)
             .borderRadius(8)
-            .backgroundColor('#3b82f6') // Light Gray
+            .backgroundColor('#3b82f6')
             .fontColor(Color.White)
             .layoutWeight(1)
             .height(44)
             .margin({ left: 12 })
+            .opacity(this.recognizing ? 0.5 : 1.0)
+            .enabled(!this.recognizing)
             .onClick(() => this.pickImage())
         }
         .width('100%')
@@ -376,10 +395,10 @@ export struct OCRPage {
             .fontColor('#111827')
           Blank()
           if (this.recognizing) {
-             LoadingProgress()
-               .width(20)
-               .height(20)
-               .color('#3b82f6')
+            LoadingProgress()
+              .width(20)
+              .height(20)
+              .color('#3b82f6')
           }
         }
         .width('100%')
@@ -387,15 +406,15 @@ export struct OCRPage {
 
         // Result Area
         Stack() {
-            TextArea({ placeholder: '', text: this.ocrText })
-              .width('100%')
-              .height('100%')
-              .borderRadius(12)
-              .backgroundColor(Color.Transparent)
-              .fontColor('#374151')
-              .fontSize(16)
-              .padding(12)
-              .onChange((t: string) => this.ocrText = t)
+          TextArea({ placeholder: '', text: this.ocrText })
+            .width('100%')
+            .height('100%')
+            .borderRadius(12)
+            .backgroundColor(Color.Transparent)
+            .fontColor('#374151')
+            .fontSize(16)
+            .padding(12)
+            .onChange((t: string) => this.ocrText = t)
         }
         .layoutWeight(1)
         .width('100%')
@@ -403,16 +422,16 @@ export struct OCRPage {
         .borderRadius(12)
         .border({ width: 2, color: '#e879f9' }) // Pink/Purple border
         .shadow({ radius: 4, color: 'rgba(232, 121, 249, 0.2)' }) // Glow effect
-        
+
         Row() {
-             Button('复制')
-               .fontSize(14)
-               .height(32)
-               .backgroundColor('#3b82f6')
-               .fontColor(Color.White)
-               .onClick(() => this.copyText())
-        }.justifyContent(FlexAlign.End).width('100%').padding({top: 8})
-        
+          Button('复制')
+            .fontSize(14)
+            .height(32)
+            .backgroundColor('#3b82f6')
+            .fontColor(Color.White)
+            .onClick(() => this.copyText())
+        }.justifyContent(FlexAlign.End).width('100%').padding({ top: 8 })
+
       }
       .padding(16)
       .width('100%')

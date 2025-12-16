@@ -14,11 +14,15 @@
     },
     {
       "name": "Tab_Home",
-      "value": "首页"
+      "value": "海图"
     },
     {
       "name": "Tab_OCR",
       "value": "OCR"
+    },
+    {
+      "name": "Tab_Set",
+      "value": "设置"
     },
     {
       "name": "permission_reason_read_media",

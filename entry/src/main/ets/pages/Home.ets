@@ -5,6 +5,8 @@ import { hilog } from '@kit.PerformanceAnalysisKit'
 import preferences from '@ohos.data.preferences'
 import router from '@ohos.router'
 import { window } from '@kit.ArkUI'
+import { FavoriteManager } from '../helpers/FavoriteManager'
+import { common } from '@kit.AbilityKit'
 
 @Component
 export struct HomePage {
@@ -140,10 +142,12 @@ export struct HomePage {
     const idx = this.favoriteIds.indexOf(item.id)
     if (idx === -1) {
       this.favoriteIds = [...this.favoriteIds, item.id]
+      FavoriteManager.add(getContext(this) as common.UIAbilityContext, item)
     } else {
       const next = [...this.favoriteIds]
       next.splice(idx, 1)
       this.favoriteIds = next
+      FavoriteManager.remove(getContext(this) as common.UIAbilityContext, item.id)
     }
     this.persistFavorites()
   }
@@ -179,11 +183,23 @@ export struct HomePage {
               .borderRadius(16)
           }
           .width(40)
+          .onClick(() => {
+            router.pushUrl({ url: 'pages/Setting' })
+          })
 
           Text($r('app.string.app_name'))
             .fontSize(20)
             .fontWeight(FontWeight.Bold)
             .margin({ left: 8 })
+
+          Blank()
+
+          Image($r('app.media.collection'))
+            .width(28)
+            .height(28)
+            .onClick(() => {
+              router.pushUrl({ url: 'pages/PicCollect' })
+            })
         }
         .width('100%')
         .padding({ top: 24, left: 20, right: 20 })
@@ -261,9 +277,10 @@ export struct HomePage {
       .height(45)
       .backgroundColor('#f5f5f5')
       .margin({ right: 20, bottom: 28 })
-        .onClick(() => {
-          this.scroller.scrollTo({ xOffset: 0, yOffset: 0, animation: { duration: 300 } })
-        })
+      .onClick(() => {
+        this.scroller.scrollTo({ xOffset: 0, yOffset: 0, animation: { duration: 300 } })
+      })
+
       Text('')
         .hitTestBehavior(HitTestMode.Transparent)
         .width('100%')

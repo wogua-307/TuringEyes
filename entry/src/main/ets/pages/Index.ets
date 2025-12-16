@@ -1,5 +1,6 @@
 import { HomePage } from './Home'
 import { OCRPage } from './OCR'
+import { SettingPage } from './Setting'
 
 @Entry
 @Component
@@ -19,6 +20,11 @@ struct Index {
         OCRPage()
       }
       .tabBar(this.TabItem($r('app.string.Tab_OCR'), 1, $r('app.media.ocr_sel'), $r('app.media.ocr_nor')))
+
+      TabContent() {
+        SettingPage()
+      }
+      .tabBar(this.TabItem($r('app.string.Tab_Set'), 2, $r('app.media.set_sel'), $r('app.media.set_nor')))
     }
     .scrollable(false)
     .barMode(BarMode.Fixed)

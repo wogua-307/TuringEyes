@@ -11,6 +11,7 @@ import { BusinessError } from '@kit.BasicServicesKit'
 import { window } from '@kit.ArkUI'
 import promptAction from '@ohos.promptAction'
 import { common, abilityAccessCtrl } from '@kit.AbilityKit';
+import { FavoriteManager } from '../helpers/FavoriteManager'
 
 interface PhotoAsset {
   uri: string
@@ -68,10 +69,14 @@ export struct PreviewPage {
     const idx = this.favoriteIds.indexOf(id)
     if (idx === -1) {
       this.favoriteIds = [...this.favoriteIds, id]
+      if (this.item) {
+        FavoriteManager.add(getContext(this) as common.UIAbilityContext, this.item)
+      }
     } else {
       const next = [...this.favoriteIds]
       next.splice(idx, 1)
       this.favoriteIds = next
+      FavoriteManager.remove(getContext(this) as common.UIAbilityContext, id)
     }
     this.persistFavorites()
   }
