@@ -87,13 +87,13 @@ export struct SettingPage {
           Image($r('app.media.foreground'))
             .width('100%')
             .height('100%')
-            .borderRadius(32)
+            .borderRadius(30)
         }
-        .width(64)
-        .height(64)
+        .width(60)
+        .height(60)
         .margin({ right: 16 })
 
-        Text(this.username)
+        Text(this.username || '图图')
           .fontSize(20)
           .fontWeight(FontWeight.Bold)
           .fontColor('#111827')

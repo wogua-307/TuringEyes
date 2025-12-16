@@ -349,7 +349,7 @@ export struct OCRPage {
           }
         }
         .width('100%')
-        .height(360)
+        .height(260)
         .backgroundColor('#f5f5f5')
         .borderRadius(16)
         .clip(true)
